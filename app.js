@@ -34,6 +34,6 @@ app.use('/api', (res) => {
 })
 app.listen('1313', () => {
   console.log(
-		chalk.green(`成功监听端口${1313}`)
+		chalk.green(`listen on port 1313`)
 	)
 })
