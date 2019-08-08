@@ -1,100 +1,135 @@
-import fs from 'fs';
-import path from 'path';
+import Base from './Base'
+import TokenModel from '../model/Token'
+import UserModel from '../model/User'
+import JWT from 'jsonwebtoken'
 
-import JWT from 'jsonwebtoken';
-import TokenModel from '../model/Token';
-import UserModel from '../model/User';
-
-import NodeLog from '../log/index';
-
-class Base{
+class Authority extends Base{
   constructor () {
-    // this.utils = utils
+    super()
+    this.checkToken = this.checkToken.bind(this)
+    this.getToken = this.getToken.bind(this)
+    this.permissions = this.permissions.bind(this)
   }
-  // 获取到用户信息
-  async getUserInfo (req) {
-    let userInfo = {};
-    JWT.verify(req.headers.authorization, 'BBS', (error, decoded) => {
+  // 验证Token令牌
+  checkToken = async(req, res, next) => {
+    const { method } = req;
+    // 登录不作限制
+    const whiteList = ['/login']
+    // TODO: 暂时不对获取数据的接口验证
+    if (method.toLocaleLowerCase() === 'get' ||  whiteList.includes(req.path)) {
+      next()
+      return
+    }
+    let token = req.headers.authorization,
+        message = '',
+        success = false,
+        content = {},
+        search
+    // token不存在
+    if (!token) {
+      res.json({
+        code: 20201,
+        success: false,
+        content: {},
+        message: '无访问权限'
+      })
+      return
+    }
+    // 验证 Token
+    JWT.verify(token, 'BBS', (error, decoded) => {
       if (error) {
-        return {}
+        success = false
+        message = 'token验证失败'
+        return
       }
-      userInfo = decoded
+      success = true
+      content = decoded
+      message = '验证tonken成功'
     })
-    // 直接从数据库获取，能保证用户最新的数据
-    const result = await UserModel.getRow({get: {id: userInfo.id, flag: 1}})
-    return result[0]
-  }
-  // 获取客户端IP
-  getClientIp (req) {
-    var ipAddress, forwardedIpsStr = req.header('x-forwarded-for')
-    if (forwardedIpsStr) {
-        var forwardedIps = forwardedIpsStr.split(',')
-        ipAddress = forwardedIps[0]
-    }
-    if (!ipAddress) {
-        ipAddress = req.connection.remoteAddress
-    }
-    return ipAddress
-  }
-  // 获取服务端地址
-  getServiceAddr (req) {
-    const headers = req.headers
-    return req.protocol + '://' + headers.host
-  }
-  // 查询路径是否存在
-  async getStat (path) {
-    return new Promise((resolve, reject) => {
-      fs.stat(path, (err, stats) => {
-        if (err) {
-          resolve(false)
-        } else {
-          resolve(stats)
-        }
+    // 验证token格式失败
+    if (!success) {
+      res.json({
+        code: 20201,
+        success: false,
+        content: {},
+        message: '无效的token'
       })
-    })
-  }
-  // 创建路径
-  async mkdir(dir){
-    return new Promise((resolve, reject) => {
-      fs.mkdir(dir, err => {
-        if (err) {
-          resolve(false)
-        } else {
-          resolve(true)
-        }
+      return
+    }
+    // 查询数据库中该token的相关信息
+    try {
+      search = await this.getToken({get: {[content.type + '_token']: token}})
+    } catch (e) {
+      res.json({
+        code: 20200,
+        success: false,
+        content: {},
+        message: '服务器内部错误'
       })
-    })
-  }
-  // 路径是否存在，不存在则创建
-  async dirExists (dir) {
-    let isExists = await this.getStat(dir), tempDir, status, mkdirStatus
-    // 如果该路径存在且不是文件，返回true
-    if (isExists && isExists.isDirectory()) {
-      return true
-    } else if (isExists) { // 如果该路径存在但是文件，返回false
-      return false
+      return
     }
-    // 如果该路径不存在
-    tempDir = path.parse(dir).dir // 拿到上级路径
-    // 递归判断，如果上级目录也不存在，则会代码会在此处继续循环执行，直到目录存在
-    status = await this.dirExists(tempDir)
-    if (status) {
-      mkdirStatus = await this.mkdir(dir)
+    // 验证Token不存在或者Token过期
+    if (search.length === 0) {
+      res.json({
+        code: 20201,
+        success: false,
+        content: {},
+        message: '无访问权限'
+      })
+      return
+    } else if ((search[content.type + '_expire_time']) < +new Date()) {
+      res.json({
+        code: 20201,
+        success: false,
+        content: {},
+        message: 'token过期'
+      })
+      return
     }
-    return mkdirStatus
+    next()
   }
-  // TODO: 异常处理, 有时间扩展, 从这里转发到异常处理模块处理
-  handleException (req, res, e) {
-    // 写入日志
-    NodeLog.writeLog(e)
-    
-    res.json({
-      code: e.errno || 20501,
-      success: false,
-      content: e,
-      message: '服务器内部错误'
-    })
+  // 设置Token令牌
+  setToken = async(data, obj) => {
+    console.log('xx')
+    try {
+      await TokenModel.setToken(data, obj)
+    } catch (e) {
+      throw e
+    }
+  }
+  // 获取Token令牌
+  async getToken (obj) {
+    return TokenModel.getToken(obj)
+  }
+  // 验证用户是否有操作权限
+  async permissions (req, res, next) {
+    const baseUrl = req.baseUrl.split('/')
+    const method = req.method
+    const userInfo = await this.getUserInfo(req)
+    const whiteList = ['/login', '/registered', '/loginOut', 
+                      '/api/article/create', '/api/article/update',
+                      '/api/draft/giveUp', '/api/draft/giveUpAll']
+    let api = baseUrl[baseUrl.length - 1] + req.path
+    // 当请求方式为get时或者登陆注册时，不需要验证数据权限
+    if (method.toLocaleLowerCase() === 'get' || whiteList.includes(req.path) || whiteList.includes(req.originalUrl)) {
+      next()
+      return
+    }
+    // 如果是删除接口，将delete后面去掉再校验
+    if (/delete/.test(api)) {
+      api = api.replace(/\/[^/*]*$/, '')
+    }
+    if (search.length > 0) {
+      next()
+    } else {
+      res.json({
+        code: 20001,
+        success: false,
+        content: {},
+        message: '无操作权限'
+      })
+    }
   }
 }
 
-export default Base
+export default new Authority()

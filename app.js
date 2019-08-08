@@ -4,6 +4,7 @@ import config from 'config-lite'; // 配置中间件
 import express from 'express';
 import bodyParser from 'body-parser';
 import history from 'connect-history-api-fallback';
+import router from './router';
 
 const app = express();
 
@@ -26,12 +27,10 @@ app.all('*', (req, res, next) => {
 // 解析body参数
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({extended: false}))
-// router(app)
+router(app)
 app.use(history())
 app.use(express.static(path.join(__dirname, 'public')))
-app.use('/api', (res) => {
-  console.log(res)
-})
+
 app.listen('1313', () => {
   console.log(
 		chalk.green(`listen on port 1313`)

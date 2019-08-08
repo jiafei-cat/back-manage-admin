@@ -8,7 +8,6 @@ const pool = mysql.createPool({
   host: dbConfig.host,
 });
 
-
 const query = (sql, values) => new Promise((resolve, reject) => {
   pool.getConnection((err, connection) => {
     if (err) {

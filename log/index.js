@@ -1,6 +1,6 @@
 import fs from 'fs'
 import path from 'path'
-import utils from '../lib/js/utils'
+import utils from '../utils'
 import schedule from 'node-schedule'
 
 class Log {
