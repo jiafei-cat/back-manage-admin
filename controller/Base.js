@@ -29,18 +29,13 @@ class Base{
    */
   getClientIp = (req) => {
     const { header, connection } = req;
-    const { ipAddress, forwardedIpsStr } = header('x-forwarded-for');
+    // const { ipAddress, forwardedIpsStr } = header('x-forwarded-for') || {};
 
-    if (forwardedIpsStr) {
-        const forwardedIps = forwardedIpsStr.split(',')
-        ipAddress = forwardedIps[0]
-    }
-
-    if (!ipAddress) {
-        ipAddress = connection.remoteAddress
-    }
-
-    return ipAddress
+    // if (forwardedIpsStr) {
+    //     const forwardedIps = forwardedIpsStr.split(',')
+    //     ipAddress = forwardedIps[0]
+    // }
+    return connection.remoteAddress
   }
   // 获取服务端地址
   getServiceAddr (req) {

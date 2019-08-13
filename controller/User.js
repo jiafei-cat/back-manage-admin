@@ -7,12 +7,12 @@ class User extends Base {
   // 登录
   login = async(req, res, next) => {
     const { body: { userName, password }} = req;
-    let search = null;
+    let search = null, data = null, token = null;
     // 查询用户名密码是否正确, 以及为用户设置登录成功后的token
     // TODO: 登录比较用户信息和token存储的信息是否一致，不一致需要重新设置token
     try {
       search = await UserModel.getRow({get: { userName, password }})
-      const data = search[0] ? JSON.parse(JSON.stringify(search[0])) : ''
+      data = search[0] ? JSON.parse(JSON.stringify(search[0])) : ''
 
       if (data) {
         // 清除返回的空值
@@ -21,57 +21,34 @@ class User extends Base {
             delete data[key]
           }
         }
-
         data.type = 'admin'
-        data[data.type + '_expire_time'] = new Date(+new Date() + 60 * 60 * 24 * 1 * 1000) // 重新登录则上次的失效 (测试期间设置为一天后失效)
         try {
-          console.log({
-            set: {
-              [`${data.type}_token`]: JWT.sign(data, {}),
-              [`${data.type}_expire_time`]: data[`data.type_expire_time`],
-              [`${data.type}_ip`]: this.getClientIp(req),
-              user_id: data.id
-            },
-            get: {
-              user_id: data.id
-            }
-          })
           // Token过期了或者用户登录获取到的信息和之前token解析出来的不一样，则重新设置，否则不处理
           await Authority.setToken(data, {
             set: {
-              [`${data.type}_token`]: JWT.sign(data, {}),
-              [`${data.type}_expire_time`]: data[`data.type_expire_time`],
-              [`${data.type}_ip`]: this.getClientIp(req),
-              user_id: data.id
+              [`${data.type}Token`]: JWT.sign(data, 'admin', {}),
+              [`${data.type}Ip`]: this.getClientIp(req),
+              userId: data.id
             },
             get: {
-              user_id: data.id
+              userId: data.id
             }
           })
         } catch (e) {
-          console.log('error1')
           this.handleException(req, res, e)
           return
         }
       }
     } catch (e) {
-      console.log('error')
       this.handleException(req, res, e)
       return
     }
-
     // 查询为空即用户信息不正确，不为空说明查询成功
     if (search.length === 0) {
       res.json({
         code: 20301,
         success: false,
         message: '账号或密码错误'
-      })
-    } else if (search[0].status === 0) {
-      res.json({
-        code: 20301,
-        success: false,
-        message: '当前账号已被停用'
       })
     } else {
       try {
@@ -91,16 +68,19 @@ class User extends Base {
         this.handleException(req, res, e)
       }
       try {
-        token = await Authority.getToken({get: {user_id: data.id}})
+        token = await Authority.getToken({get: {userId: data.id}})
       } catch (e) {
         this.handleException(req, res, e)
         return
       }
+      
+      // console.log(res.json)
+      console.log(search.length === 0)
       res.json({
         code: 20000,
         success: true,
         content: {},
-        token: token[0] ? token[0][data.type + '_token'] : '',
+        token: token[0] ? token[0][data.type + 'Token'] : '',
         message: '登录成功'
       })
     }

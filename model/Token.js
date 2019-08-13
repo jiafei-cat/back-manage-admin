@@ -5,7 +5,7 @@ import JWT from 'jsonwebtoken'
 class Token extends Base{
   // 获取token
   getToken = async(obj) => {
-    let sql = `select * from bbs_token where 1 = 1 ${this.joinStr('get', obj.get)};`
+    let sql = `select * from token where 1 = 1 ${this.joinStr('get', obj.get)};`
     return query(sql)
   }
   // 设置token
@@ -13,39 +13,31 @@ class Token extends Base{
     let search, sql, newUserInfo = {...data}, oldUserInfo = {}
     try {
       // 获取该用户的该用户的token
-      search = await this.getToken({get: {user_id: data.id}})
+      search = await this.getToken({get: {userId: data.id}})
     } catch (e) {
       return e
     }
-    console.log(search)
     // 用户不存在则创建一条数据，存在则将原来的token替换掉
     if (search.length === 0) {
-      sql = `INSERT INTO bbs_token set ${this.joinStr('set', obj.set)};`
+      sql = `INSERT INTO token set ${this.joinStr('set', obj.set)};`
     } else {
       // 解析token和当前数据做对比
-      JWT.verify(search[0][`${data.type}_token`], (error, decoded) => {
+      JWT.verify(search[0][`${data.type}Token`], 'admin', (error, decoded) => {
         if (error) {
           return {}
         }
         oldUserInfo = decoded
       })
       // 用户数据发生变化，重新设置数据信息，只修改token
-      delete newUserInfo[data.type + '_expire_time']
-      delete oldUserInfo[data.type + '_expire_time']
-      delete oldUserInfo.iat
       if (JSON.stringify(newUserInfo) !== JSON.stringify(oldUserInfo)) {
-        obj.set = {
-          [data.type + '_token']: obj.set[data.type + '_token']
-        }
-        sql = `UPDATE bbs_token set ${this.joinStr('set', obj.set)} where 1 = 1 ${this.joinStr('get', obj.get)};`
-      } else if(+new Date(search[0][data.type + '_expire_time']) > +new Date()) {
-        // 数据未过期，不处理
-        sql = ``
+        // 两边数据不一致更新token
+        obj.set = { [data.type + 'Token']: obj.set[data.type + 'Token'] }
+        sql = `UPDATE token set ${this.joinStr('set', obj.set)} where 1 = 1 ${this.joinStr('get', obj.get)};`
       } else {
-        sql = `UPDATE bbs_token set ${this.joinStr('set', obj.set)} where 1 = 1 ${this.joinStr('get', obj.get)};`
+        // 相同就更新token
+        sql = `UPDATE token set ${this.joinStr('set', obj.set)} where 1 = 1 ${this.joinStr('get', obj.get)};`
       }
     }
-    console.log(sql)
     return sql ? query(sql) : ''
   }
 }

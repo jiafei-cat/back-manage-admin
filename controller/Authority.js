@@ -90,7 +90,6 @@ class Authority extends Base{
   }
   // 设置Token令牌
   setToken = async(data, obj) => {
-    console.log('xx')
     try {
       await TokenModel.setToken(data, obj)
     } catch (e) {

@@ -5,8 +5,8 @@
   "main": "index.js",
   "scripts": {
     "dev": "nodemon ./index.js",
-    "start": "pm2 start index.js",
-    "stop": "pm2 stop index.js",
+    "start": "pm2 start ./index.js",
+    "stop": "pm2 stop ./index.js",
     "hot": "supervisor index.js",
     "apidoc": "apidoc -i router/ -o public/apidoc",
     "test": "echo \"Error: no test specified\" && exit 1"
